@@ -5,6 +5,13 @@
 #include <QMessageBox>
 
 #include <BRep_Builder.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakeSphere.hxx>
+#include <BRepPrimAPI_MakeCone.hxx>
+#include <BRepPrimAPI_MakeTorus.hxx>
+#include <BRepPrimAPI_MakeWedge.hxx>
+#include <Quantity_Color.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Common.hxx>
@@ -41,6 +48,7 @@ Snapshot Document::makeSnapshot(const QString& description) const
         sd.name = entry.name;
         sd.type = entry.type;
         sd.params = entry.params;
+        sd.color = entry.color;
         sd.topoShape = entry.topoShape;
         snap.shapes.append(sd);
     }
@@ -72,9 +80,14 @@ void Document::restoreSnapshot(const Snapshot& snapshot)
         entry.name = sd.name;
         entry.type = sd.type;
         entry.params = sd.params;
+        entry.color = sd.color;
         entry.topoShape = sd.topoShape;
         entry.aisShape = new AIS_Shape(sd.topoShape);
         m_context->Display(entry.aisShape, Standard_False);
+        m_context->SetColor(entry.aisShape,
+            Quantity_Color(entry.color.redF(), entry.color.greenF(), entry.color.blueF(),
+                           Quantity_TOC_RGB),
+            Standard_False);
         m_shapes.append(entry);
     }
 
@@ -139,6 +152,10 @@ int Document::addShape(const QString& type, const QMap<QString, double>& params,
     entry.aisShape = new AIS_Shape(shape);
 
     m_context->Display(entry.aisShape, Standard_False);
+    m_context->SetColor(entry.aisShape,
+        Quantity_Color(entry.color.redF(), entry.color.greenF(), entry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
     m_shapes.append(entry);
     m_context->UpdateCurrentViewer();
 
@@ -483,6 +500,86 @@ int Document::chamferShape(int id, double distance)
 
     emit modelChanged();
     return newEntry.id;
+}
+
+// ============================================================
+//  Parametric Editing
+// ============================================================
+
+TopoDS_Shape Document::rebuildShape(const QString& type, const QMap<QString, double>& params)
+{
+    TopoDS_Shape shape;
+
+    if (type == "Box") {
+        shape = BRepPrimAPI_MakeBox(
+            params["Width (X)"], params["Depth (Y)"], params["Height (Z)"]).Shape();
+    } else if (type == "Cylinder") {
+        shape = BRepPrimAPI_MakeCylinder(params["Radius"], params["Height"]).Shape();
+    } else if (type == "Sphere") {
+        shape = BRepPrimAPI_MakeSphere(params["Radius"]).Shape();
+    } else if (type == "Cone") {
+        shape = BRepPrimAPI_MakeCone(
+            params["Bottom Radius"], params["Top Radius"], params["Height"]).Shape();
+    } else if (type == "Torus") {
+        shape = BRepPrimAPI_MakeTorus(params["Major Radius"], params["Minor Radius"]).Shape();
+    } else if (type == "Wedge") {
+        shape = BRepPrimAPI_MakeWedge(
+            params["Width (X)"], params["Height (Z)"], params["Depth (Y)"],
+            params["Top Width (Xmin)"]).Shape();
+    }
+
+    return shape;
+}
+
+void Document::updateShapeParams(int id, const QMap<QString, double>& newParams)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+
+    TopoDS_Shape newShape = rebuildShape(entry->type, newParams);
+    if (newShape.IsNull()) return;
+
+    saveSnapshot(QString::fromUtf8("Изменение параметров: %1").arg(entry->name));
+
+    entry->params = newParams;
+    entry->topoShape = newShape;
+
+    m_context->Remove(entry->aisShape, Standard_False);
+    entry->aisShape = new AIS_Shape(newShape);
+    m_context->Display(entry->aisShape, Standard_False);
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    m_context->UpdateCurrentViewer();
+
+    emit modelChanged();
+}
+
+void Document::setShapeColor(int id, const QColor& color)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+
+    saveSnapshot(QString::fromUtf8("Цвет: %1").arg(entry->name));
+
+    entry->color = color;
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(color.redF(), color.greenF(), color.blueF(), Quantity_TOC_RGB),
+        Standard_True);
+
+    emit modelChanged();
+}
+
+void Document::renameShape(int id, const QString& newName)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry || newName.isEmpty()) return;
+
+    saveSnapshot(QString::fromUtf8("Переименование: %1").arg(entry->name));
+
+    entry->name = newName;
+    emit modelChanged();
 }
 
 // ============================================================
