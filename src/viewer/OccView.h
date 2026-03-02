@@ -7,6 +7,16 @@
 #include <V3d_View.hxx>
 #include <V3d_Viewer.hxx>
 
+/**
+ * @brief Виджет 3D-отображения на базе OpenCascade V3d.
+ *
+ * Встраивает OpenCascade V3d_View в QWidget через Cocoa_Window (macOS).
+ * Обрабатывает мышь: среднее колесо — вращение, Shift+среднее — панорама,
+ * скролл — зум, ЛКМ — выделение, Cmd/Shift+ЛКМ — мультивыделение.
+ *
+ * paintEngine() возвращает nullptr, т.к. рисование выполняется OpenGL
+ * напрямую через OpenCascade.
+ */
 class OccView : public QWidget
 {
     Q_OBJECT
@@ -15,18 +25,32 @@ public:
     explicit OccView(QWidget* parent = nullptr);
     ~OccView() override;
 
+    /** @brief Получить AIS-контекст для управления отображаемыми объектами. */
     Handle(AIS_InteractiveContext) context() const { return m_context; }
+
+    /** @brief Получить 3D-вид. */
     Handle(V3d_View) view() const { return m_view; }
 
+    /** @brief Вписать все объекты в окно. */
     void fitAll();
+
+    /** @brief Установить вид спереди (вдоль оси Y). */
     void viewFront();
+
+    /** @brief Установить вид сверху (вдоль оси Z). */
     void viewTop();
+
+    /** @brief Установить вид справа (вдоль оси X). */
     void viewRight();
+
+    /** @brief Установить изометрический вид. */
     void viewIso();
 
+    /** @brief Возвращает nullptr — рисование через OpenGL. */
     QPaintEngine* paintEngine() const override { return nullptr; }
 
 signals:
+    /** @brief Изменилось выделение объектов в 3D-виде. */
     void selectionChanged();
 
 protected:
