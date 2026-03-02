@@ -26,6 +26,10 @@ struct Snapshot {
         QString type;                  ///< Тип (Box, Cylinder, Sphere и т.д.)
         QMap<QString, double> params;  ///< Параметры фигуры (ключ — англ. имя)
         QColor color;                  ///< Цвет фигуры
+        double posX = 0.0;            ///< Позиция X
+        double posY = 0.0;            ///< Позиция Y
+        double posZ = 0.0;            ///< Позиция Z
+        bool visible = true;          ///< Видимость
         TopoDS_Shape topoShape;        ///< Геометрия OpenCascade
     };
 

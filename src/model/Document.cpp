@@ -49,6 +49,10 @@ Snapshot Document::makeSnapshot(const QString& description) const
         sd.type = entry.type;
         sd.params = entry.params;
         sd.color = entry.color;
+        sd.posX = entry.posX;
+        sd.posY = entry.posY;
+        sd.posZ = entry.posZ;
+        sd.visible = entry.visible;
         sd.topoShape = entry.topoShape;
         snap.shapes.append(sd);
     }
@@ -81,6 +85,10 @@ void Document::restoreSnapshot(const Snapshot& snapshot)
         entry.type = sd.type;
         entry.params = sd.params;
         entry.color = sd.color;
+        entry.posX = sd.posX;
+        entry.posY = sd.posY;
+        entry.posZ = sd.posZ;
+        entry.visible = sd.visible;
         entry.topoShape = sd.topoShape;
         entry.aisShape = new AIS_Shape(sd.topoShape);
         m_context->Display(entry.aisShape, Standard_False);
@@ -88,6 +96,9 @@ void Document::restoreSnapshot(const Snapshot& snapshot)
             Quantity_Color(entry.color.redF(), entry.color.greenF(), entry.color.blueF(),
                            Quantity_TOC_RGB),
             Standard_False);
+        if (!entry.visible) {
+            m_context->Erase(entry.aisShape, Standard_False);
+        }
         m_shapes.append(entry);
     }
 
@@ -283,6 +294,10 @@ void Document::translateShape(int id, double dx, double dy, double dz)
     trsf.SetTranslation(gp_Vec(dx, dy, dz));
     BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
     entry->topoShape = transform.Shape();
+
+    entry->posX += dx;
+    entry->posY += dy;
+    entry->posZ += dz;
 
     m_context->Remove(entry->aisShape, Standard_False);
     entry->aisShape = new AIS_Shape(entry->topoShape);
@@ -527,7 +542,6 @@ TopoDS_Shape Document::rebuildShape(const QString& type, const QMap<QString, dou
             params["Width (X)"], params["Height (Z)"], params["Depth (Y)"],
             params["Top Width (Xmin)"]).Shape();
     }
-
     return shape;
 }
 
@@ -579,6 +593,63 @@ void Document::renameShape(int id, const QString& newName)
     saveSnapshot(QString::fromUtf8("Переименование: %1").arg(entry->name));
 
     entry->name = newName;
+    emit modelChanged();
+}
+
+void Document::setShapeVisible(int id, bool visible)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry || entry->visible == visible) return;
+
+    saveSnapshot(visible
+        ? QString::fromUtf8("Показать: %1").arg(entry->name)
+        : QString::fromUtf8("Скрыть: %1").arg(entry->name));
+
+    entry->visible = visible;
+    if (visible) {
+        m_context->Display(entry->aisShape, Standard_False);
+        m_context->SetColor(entry->aisShape,
+            Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                           Quantity_TOC_RGB),
+            Standard_False);
+    } else {
+        m_context->Erase(entry->aisShape, Standard_False);
+    }
+    m_context->UpdateCurrentViewer();
+
+    emit modelChanged();
+}
+
+void Document::setShapePosition(int id, double x, double y, double z)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+
+    double dx = x - entry->posX;
+    double dy = y - entry->posY;
+    double dz = z - entry->posZ;
+    if (qFuzzyIsNull(dx) && qFuzzyIsNull(dy) && qFuzzyIsNull(dz)) return;
+
+    saveSnapshot(QString::fromUtf8("Позиция: %1").arg(entry->name));
+
+    gp_Trsf trsf;
+    trsf.SetTranslation(gp_Vec(dx, dy, dz));
+    BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+    entry->topoShape = transform.Shape();
+
+    entry->posX = x;
+    entry->posY = y;
+    entry->posZ = z;
+
+    m_context->Remove(entry->aisShape, Standard_False);
+    entry->aisShape = new AIS_Shape(entry->topoShape);
+    m_context->Display(entry->aisShape, Standard_False);
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    m_context->UpdateCurrentViewer();
+
     emit modelChanged();
 }
 

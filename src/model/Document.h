@@ -27,6 +27,10 @@ struct ShapeEntry {
     QString type;                  ///< Тип: Box, Cylinder, Sphere, Cone, Torus, Wedge, Import и др.
     QMap<QString, double> params;  ///< Параметры построения (англ. ключи)
     QColor color = QColor(180, 180, 220); ///< Цвет фигуры (по умолчанию серо-голубой)
+    double posX = 0.0;             ///< Позиция X в мировых координатах (мм)
+    double posY = 0.0;             ///< Позиция Y в мировых координатах (мм)
+    double posZ = 0.0;             ///< Позиция Z в мировых координатах (мм)
+    bool visible = true;           ///< Видимость фигуры в 3D-виде
     Handle(AIS_Shape) aisShape;    ///< Интерактивный объект для 3D-отображения
     TopoDS_Shape topoShape;        ///< Топологическая геометрия OpenCascade
 };
@@ -146,6 +150,12 @@ public:
 
     /** @brief Переименовать фигуру. */
     void renameShape(int id, const QString& newName);
+
+    /** @brief Установить абсолютную позицию фигуры в мировых координатах. */
+    void setShapePosition(int id, double x, double y, double z);
+
+    /** @brief Установить видимость фигуры. */
+    void setShapeVisible(int id, bool visible);
 
     /**
      * @brief Построить TopoDS_Shape из типа и параметров.
