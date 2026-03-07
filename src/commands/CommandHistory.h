@@ -30,6 +30,8 @@ struct Snapshot {
         double posY = 0.0;            ///< Позиция Y
         double posZ = 0.0;            ///< Позиция Z
         bool visible = true;          ///< Видимость
+        double transparency = 0.0;    ///< Прозрачность
+        int displayMode = 1;          ///< Режим отображения
         TopoDS_Shape topoShape;        ///< Геометрия OpenCascade
     };
 

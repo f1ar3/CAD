@@ -10,6 +10,9 @@
 #include <QGroupBox>
 #include <QColorDialog>
 #include <QPixmap>
+#include <QSlider>
+#include <QComboBox>
+#include <QHBoxLayout>
 
 // Параметры русских подписей для spin-боксов
 static QMap<QString, QString> paramLabels()
@@ -56,6 +59,29 @@ PropertyPanel::PropertyPanel(QWidget* parent)
     m_colorButton->setFixedSize(60, 24);
     connect(m_colorButton, &QPushButton::clicked, this, &PropertyPanel::onColorClicked);
     infoLayout->addRow(tr("Цвет:"), m_colorButton);
+
+    // Transparency slider
+    auto* transpWidget = new QWidget(this);
+    auto* transpLayout = new QHBoxLayout(transpWidget);
+    transpLayout->setContentsMargins(0, 0, 0, 0);
+    m_transparencySlider = new QSlider(Qt::Horizontal, this);
+    m_transparencySlider->setRange(0, 100);
+    m_transparencySlider->setValue(0);
+    connect(m_transparencySlider, &QSlider::valueChanged, this, &PropertyPanel::onTransparencyChanged);
+    m_transparencyLabel = new QLabel("0%", this);
+    m_transparencyLabel->setFixedWidth(35);
+    transpLayout->addWidget(m_transparencySlider);
+    transpLayout->addWidget(m_transparencyLabel);
+    infoLayout->addRow(tr("Прозрачность:"), transpWidget);
+
+    // Display mode combo
+    m_displayModeCombo = new QComboBox(this);
+    m_displayModeCombo->addItem(tr("Каркас"));
+    m_displayModeCombo->addItem(tr("Заливка"));
+    m_displayModeCombo->setCurrentIndex(1);
+    connect(m_displayModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PropertyPanel::onDisplayModeChanged);
+    infoLayout->addRow(tr("Отображение:"), m_displayModeCombo);
 
     mainLayout->addWidget(infoGroup);
 
@@ -122,6 +148,13 @@ void PropertyPanel::showShape(int id)
     updateColorButton(entry->color);
     m_colorButton->setEnabled(true);
 
+    int transpPercent = static_cast<int>(entry->transparency * 100);
+    m_transparencySlider->setValue(transpPercent);
+    m_transparencyLabel->setText(QString("%1%").arg(transpPercent));
+    m_transparencySlider->setEnabled(true);
+    m_displayModeCombo->setCurrentIndex(entry->displayMode);
+    m_displayModeCombo->setEnabled(true);
+
     m_posX->setValue(entry->posX);
     m_posY->setValue(entry->posY);
     m_posZ->setValue(entry->posZ);
@@ -162,6 +195,10 @@ void PropertyPanel::clearPanel()
     m_typeLabel->setText("-");
     updateColorButton(QColor(180, 180, 220));
     m_colorButton->setEnabled(false);
+    m_transparencySlider->setValue(0);
+    m_transparencySlider->setEnabled(false);
+    m_displayModeCombo->setCurrentIndex(1);
+    m_displayModeCombo->setEnabled(false);
     m_posX->setValue(0.0);
     m_posY->setValue(0.0);
     m_posZ->setValue(0.0);
@@ -211,6 +248,19 @@ void PropertyPanel::onParamChanged()
     }
 
     m_document->updateShapeParams(m_currentShapeId, newParams);
+}
+
+void PropertyPanel::onTransparencyChanged(int value)
+{
+    if (m_updatingUI || !m_document || m_currentShapeId < 0) return;
+    m_transparencyLabel->setText(QString("%1%").arg(value));
+    m_document->setShapeTransparency(m_currentShapeId, value / 100.0);
+}
+
+void PropertyPanel::onDisplayModeChanged(int index)
+{
+    if (m_updatingUI || !m_document || m_currentShapeId < 0) return;
+    m_document->setDisplayMode(m_currentShapeId, index);
 }
 
 void PropertyPanel::onPositionChanged()

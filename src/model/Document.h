@@ -31,6 +31,8 @@ struct ShapeEntry {
     double posY = 0.0;             ///< Позиция Y в мировых координатах (мм)
     double posZ = 0.0;             ///< Позиция Z в мировых координатах (мм)
     bool visible = true;           ///< Видимость фигуры в 3D-виде
+    double transparency = 0.0;     ///< Прозрачность (0.0 — непрозрачный, 1.0 — полностью прозрачный)
+    int displayMode = 1;           ///< Режим отображения (0 = каркас, 1 = заливка)
     Handle(AIS_Shape) aisShape;    ///< Интерактивный объект для 3D-отображения
     TopoDS_Shape topoShape;        ///< Топологическая геометрия OpenCascade
 };
@@ -115,6 +117,15 @@ public:
     /** @brief Переместить фигуру на (dx, dy, dz) мм. */
     void translateShape(int id, double dx, double dy, double dz);
 
+    /** @brief Начать перетаскивание — сохранить snapshot. */
+    void beginDrag(int id);
+
+    /** @brief Промежуточное перемещение при drag (без snapshot). */
+    void dragShape(int id, double dx, double dy, double dz);
+
+    /** @brief Завершить перетаскивание — emit modelChanged. */
+    void finishDrag(int id);
+
     /**
      * @brief Повернуть фигуру вокруг оси.
      * @param id ID фигуры
@@ -156,6 +167,34 @@ public:
 
     /** @brief Установить видимость фигуры. */
     void setShapeVisible(int id, bool visible);
+
+    /** @brief Установить прозрачность фигуры (0.0–1.0). */
+    void setShapeTransparency(int id, double value);
+
+    /** @brief Установить режим отображения (0=каркас, 1=заливка). */
+    void setDisplayMode(int id, int mode);
+
+    /** @brief Дублировать фигуру со сдвигом +20мм по X. */
+    int duplicateShape(int id);
+
+    /**
+     * @brief Создать линейный или круговой массив копий фигуры.
+     * @param sourceId ID исходной фигуры
+     * @param isCircular true — круговой, false — линейный
+     * @param axisIndex 0=X, 1=Y, 2=Z
+     * @param step Шаг (мм для линейного, градусы для кругового)
+     * @param count Общее количество копий (включая оригинал)
+     * @return Список ID созданных копий
+     */
+    QList<int> createPattern(int sourceId, bool isCircular, int axisIndex, double step, int count);
+
+    /**
+     * @brief Зеркально отразить фигуру.
+     * @param id ID исходной фигуры
+     * @param planeIndex 0=XY, 1=XZ, 2=YZ
+     * @return ID зеркальной копии или -1
+     */
+    int mirrorShape(int id, int planeIndex);
 
     /**
      * @brief Построить TopoDS_Shape из типа и параметров.

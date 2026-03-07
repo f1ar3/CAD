@@ -39,6 +39,12 @@ set(PROJECT_SOURCES
     src/widgets/PropertyPanel.cpp
     src/widgets/BooleanDialog.h
     src/widgets/BooleanDialog.cpp
+    src/widgets/MeasureDialog.h
+    src/widgets/MeasureDialog.cpp
+    src/widgets/PatternDialog.h
+    src/widgets/PatternDialog.cpp
+    src/widgets/MirrorDialog.h
+    src/widgets/MirrorDialog.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

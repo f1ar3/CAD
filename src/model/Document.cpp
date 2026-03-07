@@ -22,6 +22,7 @@
 #include <TopoDS.hxx>
 #include <TopExp_Explorer.hxx>
 #include <gp_Ax1.hxx>
+#include <gp_Ax2.hxx>
 
 Document::Document(Handle(AIS_InteractiveContext) context, QObject* parent)
     : QObject(parent)
@@ -53,6 +54,8 @@ Snapshot Document::makeSnapshot(const QString& description) const
         sd.posY = entry.posY;
         sd.posZ = entry.posZ;
         sd.visible = entry.visible;
+        sd.transparency = entry.transparency;
+        sd.displayMode = entry.displayMode;
         sd.topoShape = entry.topoShape;
         snap.shapes.append(sd);
     }
@@ -89,6 +92,8 @@ void Document::restoreSnapshot(const Snapshot& snapshot)
         entry.posY = sd.posY;
         entry.posZ = sd.posZ;
         entry.visible = sd.visible;
+        entry.transparency = sd.transparency;
+        entry.displayMode = sd.displayMode;
         entry.topoShape = sd.topoShape;
         entry.aisShape = new AIS_Shape(sd.topoShape);
         m_context->Display(entry.aisShape, Standard_False);
@@ -96,6 +101,10 @@ void Document::restoreSnapshot(const Snapshot& snapshot)
             Quantity_Color(entry.color.redF(), entry.color.greenF(), entry.color.blueF(),
                            Quantity_TOC_RGB),
             Standard_False);
+        if (entry.transparency > 0.0) {
+            m_context->SetTransparency(entry.aisShape, entry.transparency, Standard_False);
+        }
+        m_context->SetDisplayMode(entry.aisShape, entry.displayMode, Standard_False);
         if (!entry.visible) {
             m_context->Erase(entry.aisShape, Standard_False);
         }
@@ -187,6 +196,10 @@ int Document::addImportedShape(const QString& name, const TopoDS_Shape& shape)
     entry.aisShape = new AIS_Shape(shape);
 
     m_context->Display(entry.aisShape, Standard_False);
+    m_context->SetColor(entry.aisShape,
+        Quantity_Color(entry.color.redF(), entry.color.greenF(), entry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
     m_shapes.append(entry);
     m_context->UpdateCurrentViewer();
 
@@ -301,8 +314,56 @@ void Document::translateShape(int id, double dx, double dy, double dz)
 
     m_context->Remove(entry->aisShape, Standard_False);
     entry->aisShape = new AIS_Shape(entry->topoShape);
-    m_context->Display(entry->aisShape, Standard_True);
+    m_context->Display(entry->aisShape, Standard_False);
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    if (entry->transparency > 0.0)
+        m_context->SetTransparency(entry->aisShape, entry->transparency, Standard_False);
+    m_context->SetDisplayMode(entry->aisShape, entry->displayMode, Standard_False);
+    m_context->UpdateCurrentViewer();
 
+    emit modelChanged();
+}
+
+void Document::beginDrag(int id)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+    saveSnapshot(QString::fromUtf8("Перетаскивание: %1").arg(entry->name));
+}
+
+void Document::dragShape(int id, double dx, double dy, double dz)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+
+    gp_Trsf trsf;
+    trsf.SetTranslation(gp_Vec(dx, dy, dz));
+    BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+    entry->topoShape = transform.Shape();
+
+    entry->posX += dx;
+    entry->posY += dy;
+    entry->posZ += dz;
+
+    m_context->Remove(entry->aisShape, Standard_False);
+    entry->aisShape = new AIS_Shape(entry->topoShape);
+    m_context->Display(entry->aisShape, Standard_False);
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    if (entry->transparency > 0.0)
+        m_context->SetTransparency(entry->aisShape, entry->transparency, Standard_False);
+    m_context->SetDisplayMode(entry->aisShape, entry->displayMode, Standard_False);
+    m_context->UpdateCurrentViewer();
+}
+
+void Document::finishDrag(int id)
+{
+    Q_UNUSED(id);
     emit modelChanged();
 }
 
@@ -328,7 +389,15 @@ void Document::rotateShape(int id, int axisIndex, double angleDeg)
 
     m_context->Remove(entry->aisShape, Standard_False);
     entry->aisShape = new AIS_Shape(entry->topoShape);
-    m_context->Display(entry->aisShape, Standard_True);
+    m_context->Display(entry->aisShape, Standard_False);
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    if (entry->transparency > 0.0)
+        m_context->SetTransparency(entry->aisShape, entry->transparency, Standard_False);
+    m_context->SetDisplayMode(entry->aisShape, entry->displayMode, Standard_False);
+    m_context->UpdateCurrentViewer();
 
     emit modelChanged();
 }
@@ -347,7 +416,15 @@ void Document::scaleShape(int id, double factor)
 
     m_context->Remove(entry->aisShape, Standard_False);
     entry->aisShape = new AIS_Shape(entry->topoShape);
-    m_context->Display(entry->aisShape, Standard_True);
+    m_context->Display(entry->aisShape, Standard_False);
+    m_context->SetColor(entry->aisShape,
+        Quantity_Color(entry->color.redF(), entry->color.greenF(), entry->color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    if (entry->transparency > 0.0)
+        m_context->SetTransparency(entry->aisShape, entry->transparency, Standard_False);
+    m_context->SetDisplayMode(entry->aisShape, entry->displayMode, Standard_False);
+    m_context->UpdateCurrentViewer();
 
     emit modelChanged();
 }
@@ -410,6 +487,10 @@ int Document::booleanOperation(int id1, int id2, BooleanType type)
     entry.aisShape = new AIS_Shape(result);
 
     m_context->Display(entry.aisShape, Standard_False);
+    m_context->SetColor(entry.aisShape,
+        Quantity_Color(entry.color.redF(), entry.color.greenF(), entry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
     m_shapes.append(entry);
     m_context->UpdateCurrentViewer();
 
@@ -462,6 +543,10 @@ int Document::filletShape(int id, double radius)
     newEntry.aisShape = new AIS_Shape(result);
 
     m_context->Display(newEntry.aisShape, Standard_False);
+    m_context->SetColor(newEntry.aisShape,
+        Quantity_Color(newEntry.color.redF(), newEntry.color.greenF(), newEntry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
     m_shapes.append(newEntry);
     m_context->UpdateCurrentViewer();
 
@@ -510,6 +595,10 @@ int Document::chamferShape(int id, double distance)
     newEntry.aisShape = new AIS_Shape(result);
 
     m_context->Display(newEntry.aisShape, Standard_False);
+    m_context->SetColor(newEntry.aisShape,
+        Quantity_Color(newEntry.color.redF(), newEntry.color.greenF(), newEntry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
     m_shapes.append(newEntry);
     m_context->UpdateCurrentViewer();
 
@@ -651,6 +740,197 @@ void Document::setShapePosition(int id, double x, double y, double z)
     m_context->UpdateCurrentViewer();
 
     emit modelChanged();
+}
+
+// ============================================================
+//  Transparency / Display Mode
+// ============================================================
+
+void Document::setShapeTransparency(int id, double value)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+
+    saveSnapshot(QString::fromUtf8("Прозрачность: %1").arg(entry->name));
+
+    entry->transparency = value;
+    m_context->SetTransparency(entry->aisShape, value, Standard_True);
+
+    emit modelChanged();
+}
+
+void Document::setDisplayMode(int id, int mode)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return;
+
+    saveSnapshot(QString::fromUtf8("Режим отображения: %1").arg(entry->name));
+
+    entry->displayMode = mode;
+    m_context->SetDisplayMode(entry->aisShape, mode, Standard_True);
+
+    emit modelChanged();
+}
+
+// ============================================================
+//  Duplicate / Pattern / Mirror
+// ============================================================
+
+int Document::duplicateShape(int id)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return -1;
+
+    saveSnapshot(QString::fromUtf8("Дублирование: %1").arg(entry->name));
+
+    // Clone shape with +20mm X offset
+    gp_Trsf trsf;
+    trsf.SetTranslation(gp_Vec(20.0, 0.0, 0.0));
+    BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+
+    ShapeEntry newEntry;
+    newEntry.id = m_nextId++;
+    newEntry.name = generateName(entry->type);
+    newEntry.type = entry->type;
+    newEntry.params = entry->params;
+    newEntry.color = entry->color;
+    newEntry.posX = entry->posX + 20.0;
+    newEntry.posY = entry->posY;
+    newEntry.posZ = entry->posZ;
+    newEntry.transparency = entry->transparency;
+    newEntry.displayMode = entry->displayMode;
+    newEntry.topoShape = transform.Shape();
+    newEntry.aisShape = new AIS_Shape(newEntry.topoShape);
+
+    m_context->Display(newEntry.aisShape, Standard_False);
+    m_context->SetColor(newEntry.aisShape,
+        Quantity_Color(newEntry.color.redF(), newEntry.color.greenF(), newEntry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    if (newEntry.transparency > 0.0) {
+        m_context->SetTransparency(newEntry.aisShape, newEntry.transparency, Standard_False);
+    }
+    m_context->SetDisplayMode(newEntry.aisShape, newEntry.displayMode, Standard_False);
+
+    m_shapes.append(newEntry);
+    m_context->UpdateCurrentViewer();
+
+    emit modelChanged();
+    return newEntry.id;
+}
+
+QList<int> Document::createPattern(int sourceId, bool isCircular, int axisIndex, double step, int count)
+{
+    ShapeEntry* entry = findShape(sourceId);
+    if (!entry || count < 2) return {};
+
+    saveSnapshot(isCircular
+        ? QString::fromUtf8("Круговой массив: %1").arg(entry->name)
+        : QString::fromUtf8("Линейный массив: %1").arg(entry->name));
+
+    gp_Dir axisDir;
+    switch (axisIndex) {
+    case 0: axisDir = gp_Dir(1, 0, 0); break;
+    case 1: axisDir = gp_Dir(0, 1, 0); break;
+    case 2: axisDir = gp_Dir(0, 0, 1); break;
+    default: return {};
+    }
+
+    QList<int> newIds;
+
+    for (int i = 1; i < count; ++i) {
+        gp_Trsf trsf;
+        if (isCircular) {
+            double angleRad = step * i * M_PI / 180.0;
+            trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), axisDir), angleRad);
+        } else {
+            gp_Vec vec(axisDir);
+            vec.Multiply(step * i);
+            trsf.SetTranslation(vec);
+        }
+
+        BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+
+        ShapeEntry newEntry;
+        newEntry.id = m_nextId++;
+        newEntry.name = QString("%1_p%2").arg(entry->name).arg(i + 1);
+        newEntry.type = entry->type;
+        newEntry.params = entry->params;
+        newEntry.color = entry->color;
+        newEntry.transparency = entry->transparency;
+        newEntry.displayMode = entry->displayMode;
+
+        if (!isCircular) {
+            double d = step * i;
+            newEntry.posX = entry->posX + (axisIndex == 0 ? d : 0.0);
+            newEntry.posY = entry->posY + (axisIndex == 1 ? d : 0.0);
+            newEntry.posZ = entry->posZ + (axisIndex == 2 ? d : 0.0);
+        }
+
+        newEntry.topoShape = transform.Shape();
+        newEntry.aisShape = new AIS_Shape(newEntry.topoShape);
+
+        m_context->Display(newEntry.aisShape, Standard_False);
+        m_context->SetColor(newEntry.aisShape,
+            Quantity_Color(newEntry.color.redF(), newEntry.color.greenF(), newEntry.color.blueF(),
+                           Quantity_TOC_RGB),
+            Standard_False);
+        if (newEntry.transparency > 0.0) {
+            m_context->SetTransparency(newEntry.aisShape, newEntry.transparency, Standard_False);
+        }
+
+        m_shapes.append(newEntry);
+        newIds.append(newEntry.id);
+    }
+
+    m_context->UpdateCurrentViewer();
+    emit modelChanged();
+    return newIds;
+}
+
+int Document::mirrorShape(int id, int planeIndex)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry) return -1;
+
+    saveSnapshot(QString::fromUtf8("Зеркало: %1").arg(entry->name));
+
+    gp_Dir normal;
+    switch (planeIndex) {
+    case 0: normal = gp_Dir(0, 0, 1); break;  // XY plane → mirror Z
+    case 1: normal = gp_Dir(0, 1, 0); break;  // XZ plane → mirror Y
+    case 2: normal = gp_Dir(1, 0, 0); break;  // YZ plane → mirror X
+    default: return -1;
+    }
+
+    gp_Trsf trsf;
+    trsf.SetMirror(gp_Ax2(gp_Pnt(0, 0, 0), normal));
+    BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+
+    ShapeEntry newEntry;
+    newEntry.id = m_nextId++;
+    newEntry.name = QString::fromUtf8("Зеркало(%1)").arg(entry->name);
+    newEntry.type = QString::fromUtf8("Зеркало");
+    newEntry.color = entry->color;
+    newEntry.transparency = entry->transparency;
+    newEntry.displayMode = entry->displayMode;
+    newEntry.topoShape = transform.Shape();
+    newEntry.aisShape = new AIS_Shape(newEntry.topoShape);
+
+    m_context->Display(newEntry.aisShape, Standard_False);
+    m_context->SetColor(newEntry.aisShape,
+        Quantity_Color(newEntry.color.redF(), newEntry.color.greenF(), newEntry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    if (newEntry.transparency > 0.0) {
+        m_context->SetTransparency(newEntry.aisShape, newEntry.transparency, Standard_False);
+    }
+
+    m_shapes.append(newEntry);
+    m_context->UpdateCurrentViewer();
+
+    emit modelChanged();
+    return newEntry.id;
 }
 
 // ============================================================

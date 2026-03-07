@@ -9,6 +9,8 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QDoubleSpinBox;
+class QSlider;
+class QComboBox;
 class Document;
 
 class PropertyPanel : public QWidget
@@ -28,6 +30,8 @@ private:
     void onColorClicked();
     void onParamChanged();
     void onPositionChanged();
+    void onTransparencyChanged(int value);
+    void onDisplayModeChanged(int index);
     void updateColorButton(const QColor& color);
 
     static QStringList editableTypes();
@@ -44,6 +48,10 @@ private:
     QDoubleSpinBox* m_posX;
     QDoubleSpinBox* m_posY;
     QDoubleSpinBox* m_posZ;
+
+    QSlider* m_transparencySlider;
+    QLabel* m_transparencyLabel;
+    QComboBox* m_displayModeCombo;
 
     QMap<QString, QDoubleSpinBox*> m_paramSpinBoxes;
 };
