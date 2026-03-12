@@ -59,3 +59,22 @@ target_link_libraries(tst_Measure PRIVATE
     TKGeomBase TKGeomAlgo TKPrim
 )
 add_test(NAME tst_Measure COMMAND tst_Measure)
+
+# --- tst_Sketch ---
+add_executable(tst_Sketch
+    tst_Sketch.cpp
+    ${CMAKE_SOURCE_DIR}/src/model/Document.cpp
+    ${CMAKE_SOURCE_DIR}/src/commands/CommandHistory.cpp
+    ${CMAKE_SOURCE_DIR}/src/io/FileIO.cpp
+)
+target_include_directories(tst_Sketch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tst_Sketch PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Widgets
+    TKernel TKMath TKG3d TKBRep TKTopAlgo
+    TKGeomBase TKGeomAlgo TKPrim TKBO
+    TKFillet TKShHealing
+    TKDESTEP TKDEIGES TKXSBase TKDE
+    TKMesh TKV3d TKService TKOpenGl
+)
+add_test(NAME tst_Sketch COMMAND tst_Sketch)
