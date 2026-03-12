@@ -10,9 +10,12 @@
 #include "../src/widgets/MeasureDialog.h"
 #include "../src/widgets/PatternDialog.h"
 #include "../src/widgets/MirrorDialog.h"
+#include "../src/widgets/SketchDialog.h"
+#include "../src/widgets/ExtrudeDialog.h"
 
 #include <QMenuBar>
 #include <QToolBar>
+#include <QToolButton>
 #include <QStatusBar>
 #include <QDockWidget>
 #include <QFileDialog>
@@ -21,6 +24,9 @@
 #include <QApplication>
 #include <QStyle>
 #include <QFileInfo>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QFrame>
 
 
 MainWindow::MainWindow(QWidget* parent)
@@ -109,20 +115,22 @@ void MainWindow::initDocument()
 
 void MainWindow::createActions()
 {
-    auto* style = QApplication::style();
+    auto icon = [](const QString& name) {
+        return QIcon(QString(":/icons/%1").arg(name));
+    };
 
     // --- Файл ---
-    m_actNew = new QAction(style->standardIcon(QStyle::SP_FileIcon), tr("Новый"), this);
+    m_actNew = new QAction(icon("new_doc"), tr("Новый"), this);
     m_actNew->setShortcut(QKeySequence::New);
     m_actNew->setToolTip(tr("Создать новый пустой документ (Cmd+N)"));
     connect(m_actNew, &QAction::triggered, this, &MainWindow::onNewDocument);
 
-    m_actOpen = new QAction(style->standardIcon(QStyle::SP_DialogOpenButton), tr("Открыть..."), this);
+    m_actOpen = new QAction(icon("open"), tr("Открыть..."), this);
     m_actOpen->setShortcut(QKeySequence::Open);
     m_actOpen->setToolTip(tr("Импортировать файл STEP/IGES/BRep (Cmd+O)"));
     connect(m_actOpen, &QAction::triggered, this, &MainWindow::onOpenFile);
 
-    m_actSaveAs = new QAction(style->standardIcon(QStyle::SP_DialogSaveButton), tr("Сохранить как..."), this);
+    m_actSaveAs = new QAction(icon("save"), tr("Сохранить как..."), this);
     m_actSaveAs->setShortcut(QKeySequence::SaveAs);
     m_actSaveAs->setToolTip(tr("Экспортировать в STEP/IGES/BRep (Cmd+Shift+S)"));
     connect(m_actSaveAs, &QAction::triggered, this, &MainWindow::onSaveAs);
@@ -132,123 +140,161 @@ void MainWindow::createActions()
     connect(m_actExit, &QAction::triggered, this, &QWidget::close);
 
     // --- Правка ---
-    m_actUndo = new QAction(style->standardIcon(QStyle::SP_ArrowBack), tr("Отменить"), this);
+    m_actUndo = new QAction(icon("undo"), tr("Отменить"), this);
     m_actUndo->setShortcut(QKeySequence::Undo);
+    m_actUndo->setToolTip(tr("Отменить (Cmd+Z)"));
     m_actUndo->setEnabled(false);
 
-    m_actRedo = new QAction(style->standardIcon(QStyle::SP_ArrowForward), tr("Повторить"), this);
+    m_actRedo = new QAction(icon("redo"), tr("Повторить"), this);
     m_actRedo->setShortcut(QKeySequence::Redo);
+    m_actRedo->setToolTip(tr("Повторить (Cmd+Shift+Z)"));
     m_actRedo->setEnabled(false);
 
-    m_actDelete = new QAction(style->standardIcon(QStyle::SP_TrashIcon), tr("Удалить"), this);
+    m_actDelete = new QAction(icon("delete"), tr("Удалить"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setToolTip(tr("Удалить выделенную фигуру (Del)"));
     connect(m_actDelete, &QAction::triggered, this, &MainWindow::onDeleteSelected);
 
     // --- Вид ---
-    m_actFitAll = new QAction(tr("Показать всё"), this);
+    m_actFitAll = new QAction(icon("fitall"), tr("Показать всё"), this);
     m_actFitAll->setShortcut(tr("F"));
     m_actFitAll->setToolTip(tr("Вписать все фигуры в окно (F)"));
     connect(m_actFitAll, &QAction::triggered, this, &MainWindow::onViewFitAll);
 
-    m_actViewFront = new QAction(tr("Спереди"), this);
+    m_actViewFront = new QAction(icon("view_front"), tr("Спереди"), this);
     m_actViewFront->setShortcut(tr("1"));
+    m_actViewFront->setToolTip(tr("Вид спереди (1)"));
     connect(m_actViewFront, &QAction::triggered, this, &MainWindow::onViewFront);
 
-    m_actViewTop = new QAction(tr("Сверху"), this);
+    m_actViewTop = new QAction(icon("view_top"), tr("Сверху"), this);
     m_actViewTop->setShortcut(tr("2"));
+    m_actViewTop->setToolTip(tr("Вид сверху (2)"));
     connect(m_actViewTop, &QAction::triggered, this, &MainWindow::onViewTop);
 
-    m_actViewRight = new QAction(tr("Справа"), this);
+    m_actViewRight = new QAction(icon("view_right"), tr("Справа"), this);
     m_actViewRight->setShortcut(tr("3"));
+    m_actViewRight->setToolTip(tr("Вид справа (3)"));
     connect(m_actViewRight, &QAction::triggered, this, &MainWindow::onViewRight);
 
-    m_actViewIso = new QAction(tr("Изометрия"), this);
+    m_actViewIso = new QAction(icon("view_iso"), tr("Изометрия"), this);
     m_actViewIso->setShortcut(tr("0"));
     m_actViewIso->setToolTip(tr("Изометрический вид (0)"));
     connect(m_actViewIso, &QAction::triggered, this, &MainWindow::onViewIso);
 
     // --- Примитивы ---
-    m_actBox = new QAction(tr("Параллелепипед"), this);
+    m_actBox = new QAction(icon("box"), tr("Параллелепипед"), this);
+    m_actBox->setToolTip(tr("Создать параллелепипед"));
     connect(m_actBox, &QAction::triggered, this, &MainWindow::onCreateBox);
 
-    m_actCylinder = new QAction(tr("Цилиндр"), this);
+    m_actCylinder = new QAction(icon("cylinder"), tr("Цилиндр"), this);
+    m_actCylinder->setToolTip(tr("Создать цилиндр"));
     connect(m_actCylinder, &QAction::triggered, this, &MainWindow::onCreateCylinder);
 
-    m_actSphere = new QAction(tr("Сфера"), this);
+    m_actSphere = new QAction(icon("sphere"), tr("Сфера"), this);
+    m_actSphere->setToolTip(tr("Создать сферу"));
     connect(m_actSphere, &QAction::triggered, this, &MainWindow::onCreateSphere);
 
-    m_actCone = new QAction(tr("Конус"), this);
+    m_actCone = new QAction(icon("cone"), tr("Конус"), this);
+    m_actCone->setToolTip(tr("Создать конус"));
     connect(m_actCone, &QAction::triggered, this, &MainWindow::onCreateCone);
 
-    m_actTorus = new QAction(tr("Тор"), this);
+    m_actTorus = new QAction(icon("torus"), tr("Тор"), this);
+    m_actTorus->setToolTip(tr("Создать тор"));
     connect(m_actTorus, &QAction::triggered, this, &MainWindow::onCreateTorus);
 
-    m_actWedge = new QAction(tr("Клин"), this);
+    m_actWedge = new QAction(icon("wedge"), tr("Клин"), this);
+    m_actWedge->setToolTip(tr("Создать клин"));
     connect(m_actWedge, &QAction::triggered, this, &MainWindow::onCreateWedge);
 
-    // --- Трансформации ---
-    m_actTranslate = new QAction(tr("Переместить..."), this);
-    m_actTranslate->setShortcut(tr("G"));
-    m_actTranslate->setToolTip(tr("Переместить фигуру (G)"));
-    connect(m_actTranslate, &QAction::triggered, this, &MainWindow::onTranslate);
-
-    m_actRotate = new QAction(tr("Повернуть..."), this);
-    m_actRotate->setShortcut(tr("R"));
-    m_actRotate->setToolTip(tr("Повернуть фигуру (R)"));
-    connect(m_actRotate, &QAction::triggered, this, &MainWindow::onRotate);
-
-    m_actScale = new QAction(tr("Масштабировать..."), this);
-    m_actScale->setShortcut(tr("S"));
-    m_actScale->setToolTip(tr("Масштабировать фигуру (S)"));
-    connect(m_actScale, &QAction::triggered, this, &MainWindow::onScale);
-
     // --- Булевы операции ---
-    m_actFuse = new QAction(tr("Объединение"), this);
+    m_actFuse = new QAction(icon("bool_fuse"), tr("Объединение"), this);
     m_actFuse->setToolTip(tr("Объединить две фигуры в одну"));
     connect(m_actFuse, &QAction::triggered, this, &MainWindow::onBoolFuse);
 
-    m_actCut = new QAction(tr("Вычитание"), this);
+    m_actCut = new QAction(icon("bool_cut"), tr("Вычитание"), this);
     m_actCut->setToolTip(tr("Вычесть одну фигуру из другой"));
     connect(m_actCut, &QAction::triggered, this, &MainWindow::onBoolCut);
 
-    m_actCommon = new QAction(tr("Пересечение"), this);
+    m_actCommon = new QAction(icon("bool_common"), tr("Пересечение"), this);
     m_actCommon->setToolTip(tr("Оставить только пересечение двух фигур"));
     connect(m_actCommon, &QAction::triggered, this, &MainWindow::onBoolCommon);
 
     // --- Скругление / Фаска ---
-    m_actFillet = new QAction(tr("Скругление..."), this);
+    m_actFillet = new QAction(icon("fillet"), tr("Скругление..."), this);
     m_actFillet->setToolTip(tr("Скруглить все рёбра выделенной фигуры"));
     connect(m_actFillet, &QAction::triggered, this, &MainWindow::onFillet);
 
-    m_actChamfer = new QAction(tr("Фаска..."), this);
+    m_actChamfer = new QAction(icon("chamfer"), tr("Фаска..."), this);
     m_actChamfer->setToolTip(tr("Снять фаску со всех рёбер выделенной фигуры"));
     connect(m_actChamfer, &QAction::triggered, this, &MainWindow::onChamfer);
 
+    // --- Трансформации ---
+    m_actTranslate = new QAction(icon("translate"), tr("Переместить..."), this);
+    m_actTranslate->setShortcut(tr("G"));
+    m_actTranslate->setToolTip(tr("Переместить фигуру (G)"));
+    connect(m_actTranslate, &QAction::triggered, this, &MainWindow::onTranslate);
+
+    m_actRotate = new QAction(icon("rotate"), tr("Повернуть..."), this);
+    m_actRotate->setShortcut(tr("R"));
+    m_actRotate->setToolTip(tr("Повернуть фигуру (R)"));
+    connect(m_actRotate, &QAction::triggered, this, &MainWindow::onRotate);
+
+    m_actScale = new QAction(icon("scale"), tr("Масштабировать..."), this);
+    m_actScale->setShortcut(tr("S"));
+    m_actScale->setToolTip(tr("Масштабировать фигуру (S)"));
+    connect(m_actScale, &QAction::triggered, this, &MainWindow::onScale);
+
     // --- Измерение / Массив / Зеркало ---
-    m_actMeasure = new QAction(tr("Измерения..."), this);
+    m_actMeasure = new QAction(icon("measure"), tr("Измерения..."), this);
     m_actMeasure->setShortcut(tr("M"));
     m_actMeasure->setToolTip(tr("Объём, площадь и габариты фигуры (M)"));
     connect(m_actMeasure, &QAction::triggered, this, &MainWindow::onMeasure);
 
-    m_actPattern = new QAction(tr("Массив..."), this);
+    m_actPattern = new QAction(icon("pattern"), tr("Массив..."), this);
     m_actPattern->setShortcut(tr("P"));
     m_actPattern->setToolTip(tr("Линейный или круговой массив копий (P)"));
     connect(m_actPattern, &QAction::triggered, this, &MainWindow::onPattern);
 
-    m_actMirror = new QAction(tr("Зеркало..."), this);
+    m_actMirror = new QAction(icon("mirror"), tr("Зеркало..."), this);
     m_actMirror->setToolTip(tr("Зеркальное отражение фигуры"));
     connect(m_actMirror, &QAction::triggered, this, &MainWindow::onMirror);
 
-    m_actDuplicate = new QAction(tr("Дублировать"), this);
+    m_actDuplicate = new QAction(icon("duplicate"), tr("Дублировать"), this);
     m_actDuplicate->setShortcut(QKeySequence(tr("Ctrl+D")));
     m_actDuplicate->setToolTip(tr("Дублировать выделенную фигуру (Ctrl+D)"));
     connect(m_actDuplicate, &QAction::triggered, this, &MainWindow::onDuplicate);
 
-    m_actToggleVisibility = new QAction(tr("Скрыть/Показать"), this);
+    m_actToggleVisibility = new QAction(icon("visibility"), tr("Скрыть/Показать"), this);
     m_actToggleVisibility->setShortcut(tr("H"));
     m_actToggleVisibility->setToolTip(tr("Скрыть или показать выделенную фигуру (H)"));
     connect(m_actToggleVisibility, &QAction::triggered, this, &MainWindow::onToggleVisibility);
+
+    // --- 2D-эскизы ---
+    m_actSketchRect = new QAction(icon("sketch_rect"), tr("Прямоугольник"), this);
+    m_actSketchRect->setToolTip(tr("Эскиз: прямоугольник"));
+    connect(m_actSketchRect, &QAction::triggered, this, &MainWindow::onSketchRectangle);
+
+    m_actSketchCircle = new QAction(icon("sketch_circle"), tr("Окружность"), this);
+    m_actSketchCircle->setToolTip(tr("Эскиз: окружность"));
+    connect(m_actSketchCircle, &QAction::triggered, this, &MainWindow::onSketchCircle);
+
+    m_actSketchEllipse = new QAction(icon("sketch_ellipse"), tr("Эллипс"), this);
+    m_actSketchEllipse->setToolTip(tr("Эскиз: эллипс"));
+    connect(m_actSketchEllipse, &QAction::triggered, this, &MainWindow::onSketchEllipse);
+
+    m_actSketchPolygon = new QAction(icon("sketch_polygon"), tr("Многоугольник"), this);
+    m_actSketchPolygon->setToolTip(tr("Эскиз: правильный многоугольник"));
+    connect(m_actSketchPolygon, &QAction::triggered, this, &MainWindow::onSketchPolygon);
+
+    m_actSketchTriangle = new QAction(icon("sketch_triangle"), tr("Треугольник"), this);
+    m_actSketchTriangle->setToolTip(tr("Эскиз: равносторонний треугольник"));
+    connect(m_actSketchTriangle, &QAction::triggered, this, &MainWindow::onSketchTriangle);
+
+    // --- Выдавливание ---
+    m_actExtrude = new QAction(icon("extrude"), tr("Выдавить..."), this);
+    m_actExtrude->setShortcut(tr("E"));
+    m_actExtrude->setToolTip(tr("Выдавить 2D-эскиз в 3D-тело (E)"));
+    connect(m_actExtrude, &QAction::triggered, this, &MainWindow::onExtrude);
 }
 
 // ============================================================
@@ -284,6 +330,16 @@ void MainWindow::createMenus()
     viewMenu->addSeparator();
     viewMenu->addAction(m_actToggleVisibility);
 
+    // Эскиз
+    QMenu* sketchMenu = menuBar()->addMenu(tr("&Эскиз"));
+    sketchMenu->addAction(m_actSketchRect);
+    sketchMenu->addAction(m_actSketchCircle);
+    sketchMenu->addAction(m_actSketchEllipse);
+    sketchMenu->addAction(m_actSketchPolygon);
+    sketchMenu->addAction(m_actSketchTriangle);
+    sketchMenu->addSeparator();
+    sketchMenu->addAction(m_actExtrude);
+
     // Моделирование
     QMenu* modelMenu = menuBar()->addMenu(tr("&Моделирование"));
     modelMenu->addAction(m_actBox);
@@ -317,57 +373,127 @@ void MainWindow::createMenus()
 
 void MainWindow::createToolBars()
 {
-    // Файл
-    QToolBar* fileBar = addToolBar(tr("Файл"));
-    fileBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    fileBar->addAction(m_actNew);
-    fileBar->addAction(m_actOpen);
-    fileBar->addAction(m_actSaveAs);
+    const int iconSz = 22;
 
-    // Вид
-    QToolBar* viewBar = addToolBar(tr("Вид"));
-    viewBar->addAction(m_actFitAll);
-    viewBar->addAction(m_actViewFront);
-    viewBar->addAction(m_actViewTop);
-    viewBar->addAction(m_actViewRight);
-    viewBar->addAction(m_actViewIso);
+    // Вспомогательная: вертикальный разделитель между группами
+    auto addGroupSep = [](QToolBar* bar) {
+        auto* sep = new QFrame(bar);
+        sep->setFrameShape(QFrame::VLine);
+        sep->setFrameShadow(QFrame::Sunken);
+        sep->setFixedWidth(2);
+        sep->setFixedHeight(28);
+        sep->setStyleSheet("QFrame { color: rgba(255,255,255,40); margin: 0 4px; }");
+        bar->addWidget(sep);
+    };
 
-    // Примитивы
-    addToolBarBreak();
-    QToolBar* primBar = addToolBar(tr("Примитивы"));
-    primBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    primBar->addAction(m_actBox);
-    primBar->addAction(m_actCylinder);
-    primBar->addAction(m_actSphere);
-    primBar->addAction(m_actCone);
-    primBar->addAction(m_actTorus);
-    primBar->addAction(m_actWedge);
+    // Вспомогательная: подпись группы
+    auto addGroupLabel = [](QToolBar* bar, const QString& text) {
+        auto* label = new QLabel(text, bar);
+        label->setStyleSheet(
+            "QLabel { color: rgba(255,255,255,120); font-size: 9px; padding: 0 3px; }");
+        bar->addWidget(label);
+    };
 
-    // Булевы
-    QToolBar* boolBar = addToolBar(tr("Булевы"));
-    boolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    boolBar->addAction(m_actFuse);
-    boolBar->addAction(m_actCut);
-    boolBar->addAction(m_actCommon);
+    // ========== Главная панель ==========
+    QToolBar* mainBar = addToolBar(tr("Главная"));
+    mainBar->setIconSize(QSize(iconSz, iconSz));
+    mainBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    mainBar->setMovable(false);
 
-    // Операции
-    QToolBar* opsBar = addToolBar(tr("Операции"));
-    opsBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    opsBar->addAction(m_actFillet);
-    opsBar->addAction(m_actChamfer);
-    opsBar->addAction(m_actMeasure);
-    opsBar->addAction(m_actPattern);
-    opsBar->addAction(m_actMirror);
+    // --- Файл ---
+    addGroupLabel(mainBar, tr("Файл"));
+    mainBar->addAction(m_actNew);
+    mainBar->addAction(m_actOpen);
+    mainBar->addAction(m_actSaveAs);
 
-    // Трансформация
-    QToolBar* transBar = addToolBar(tr("Трансформация"));
-    transBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    transBar->addAction(m_actTranslate);
-    transBar->addAction(m_actRotate);
-    transBar->addAction(m_actScale);
-    transBar->addAction(m_actDuplicate);
-    transBar->addSeparator();
-    transBar->addAction(m_actDelete);
+    addGroupSep(mainBar);
+
+    // --- Undo / Redo ---
+    mainBar->addAction(m_actUndo);
+    mainBar->addAction(m_actRedo);
+
+    addGroupSep(mainBar);
+
+    // --- Вид ---
+    addGroupLabel(mainBar, tr("Вид"));
+    mainBar->addAction(m_actFitAll);
+    mainBar->addAction(m_actViewFront);
+    mainBar->addAction(m_actViewTop);
+    mainBar->addAction(m_actViewRight);
+    mainBar->addAction(m_actViewIso);
+
+    addGroupSep(mainBar);
+
+    // --- 2D-эскизы ---
+    addGroupLabel(mainBar, tr("Эскиз"));
+    mainBar->addAction(m_actSketchRect);
+    mainBar->addAction(m_actSketchCircle);
+    mainBar->addAction(m_actSketchEllipse);
+    mainBar->addAction(m_actSketchPolygon);
+    mainBar->addAction(m_actSketchTriangle);
+
+    addGroupSep(mainBar);
+
+    // --- Примитивы (каждый отдельной кнопкой) ---
+    addGroupLabel(mainBar, tr("3D тела"));
+    mainBar->addAction(m_actBox);
+    mainBar->addAction(m_actCylinder);
+    mainBar->addAction(m_actSphere);
+    mainBar->addAction(m_actCone);
+    mainBar->addAction(m_actTorus);
+    mainBar->addAction(m_actWedge);
+
+    addGroupSep(mainBar);
+
+    // --- Булевы (выпадающее меню — 3 операции, удобнее в dropdown) ---
+    addGroupLabel(mainBar, tr("Булевы"));
+    auto* boolMenu = new QMenu(tr("Булевы операции"), this);
+    boolMenu->addAction(m_actFuse);
+    boolMenu->addAction(m_actCut);
+    boolMenu->addAction(m_actCommon);
+
+    auto* boolButton = new QToolButton(this);
+    boolButton->setIcon(QIcon(":/icons/bool_fuse"));
+    boolButton->setToolTip(tr("Булева операция"));
+    boolButton->setPopupMode(QToolButton::InstantPopup);
+    boolButton->setMenu(boolMenu);
+    boolButton->setIconSize(QSize(iconSz, iconSz));
+    mainBar->addWidget(boolButton);
+
+    connect(boolMenu, &QMenu::triggered, this, [boolButton](QAction* action) {
+        boolButton->setIcon(action->icon());
+    });
+
+    addGroupSep(mainBar);
+
+    // --- Модификации ---
+    addGroupLabel(mainBar, tr("Модиф."));
+    mainBar->addAction(m_actExtrude);
+    mainBar->addAction(m_actFillet);
+    mainBar->addAction(m_actChamfer);
+
+    addGroupSep(mainBar);
+
+    // --- Трансформации ---
+    addGroupLabel(mainBar, tr("Трансф."));
+    mainBar->addAction(m_actTranslate);
+    mainBar->addAction(m_actRotate);
+    mainBar->addAction(m_actScale);
+
+    addGroupSep(mainBar);
+
+    // --- Инструменты ---
+    addGroupLabel(mainBar, tr("Инстр."));
+    mainBar->addAction(m_actMeasure);
+    mainBar->addAction(m_actPattern);
+    mainBar->addAction(m_actMirror);
+    mainBar->addAction(m_actDuplicate);
+
+    addGroupSep(mainBar);
+
+    // --- Видимость / Удаление ---
+    mainBar->addAction(m_actToggleVisibility);
+    mainBar->addAction(m_actDelete);
 }
 
 // ============================================================
@@ -671,6 +797,59 @@ void MainWindow::onToggleVisibility()
     if (!entry) return;
 
     m_document->setShapeVisible(id, !entry->visible);
+}
+
+// ============================================================
+//  2D-эскизы
+// ============================================================
+
+void MainWindow::createSketch(const QString& type)
+{
+    if (!m_document) return;
+
+    int planeIdx = 0;
+    double planeOfs = 0.0;
+    auto params = SketchDialog::getParameters(type, planeIdx, planeOfs, this);
+    if (params.isEmpty()) return;
+
+    TopoDS_Shape face = Document::rebuildSketch(type, params, planeIdx, planeOfs);
+    if (face.IsNull()) return;
+
+    m_document->addSketch(type, params, planeIdx, planeOfs, face);
+    m_occView->fitAll();
+    statusBar()->showMessage(tr("Эскиз создан: %1").arg(type));
+}
+
+void MainWindow::onSketchRectangle() { createSketch("Sketch_Rectangle"); }
+void MainWindow::onSketchCircle()    { createSketch("Sketch_Circle"); }
+void MainWindow::onSketchEllipse()   { createSketch("Sketch_Ellipse"); }
+void MainWindow::onSketchPolygon()   { createSketch("Sketch_Polygon"); }
+void MainWindow::onSketchTriangle()  { createSketch("Sketch_Triangle"); }
+
+void MainWindow::onExtrude()
+{
+    int id = requireSelectedShape();
+    if (id < 0) return;
+
+    const ShapeEntry* entry = m_document->findShape(id);
+    if (!entry || !Document::isSketchType(entry->type)) {
+        QMessageBox::information(this, tr("Выдавливание"),
+            tr("Выберите 2D-эскиз для выдавливания.\n"
+               "Создайте эскиз через меню Эскиз или панель инструментов."));
+        return;
+    }
+
+    double height = 50.0;
+    bool symmetric = true;
+    if (!ExtrudeDialog::getParameters(height, symmetric, this)) return;
+
+    int result = m_document->extrudeShape(id, height, symmetric);
+    if (result < 0) {
+        QMessageBox::warning(this, tr("Ошибка"), tr("Выдавливание не удалось."));
+    } else {
+        m_occView->fitAll();
+        statusBar()->showMessage(tr("Выдавливание выполнено (H=%1)").arg(height));
+    }
 }
 
 // ============================================================

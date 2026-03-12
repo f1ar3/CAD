@@ -1,0 +1,40 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="box">icons/box.svg</file>
+        <file alias="cylinder">icons/cylinder.svg</file>
+        <file alias="sphere">icons/sphere.svg</file>
+        <file alias="cone">icons/cone.svg</file>
+        <file alias="torus">icons/torus.svg</file>
+        <file alias="wedge">icons/wedge.svg</file>
+        <file alias="bool_fuse">icons/bool_fuse.svg</file>
+        <file alias="bool_cut">icons/bool_cut.svg</file>
+        <file alias="bool_common">icons/bool_common.svg</file>
+        <file alias="fillet">icons/fillet.svg</file>
+        <file alias="chamfer">icons/chamfer.svg</file>
+        <file alias="measure">icons/measure.svg</file>
+        <file alias="pattern">icons/pattern.svg</file>
+        <file alias="mirror">icons/mirror.svg</file>
+        <file alias="translate">icons/translate.svg</file>
+        <file alias="rotate">icons/rotate.svg</file>
+        <file alias="scale">icons/scale.svg</file>
+        <file alias="duplicate">icons/duplicate.svg</file>
+        <file alias="delete">icons/delete.svg</file>
+        <file alias="visibility">icons/visibility.svg</file>
+        <file alias="fitall">icons/fitall.svg</file>
+        <file alias="view_front">icons/view_front.svg</file>
+        <file alias="view_top">icons/view_top.svg</file>
+        <file alias="view_right">icons/view_right.svg</file>
+        <file alias="view_iso">icons/view_iso.svg</file>
+        <file alias="new_doc">icons/new_doc.svg</file>
+        <file alias="open">icons/open.svg</file>
+        <file alias="save">icons/save.svg</file>
+        <file alias="undo">icons/undo.svg</file>
+        <file alias="redo">icons/redo.svg</file>
+        <file alias="sketch_rect">icons/sketch_rect.svg</file>
+        <file alias="sketch_circle">icons/sketch_circle.svg</file>
+        <file alias="sketch_ellipse">icons/sketch_ellipse.svg</file>
+        <file alias="sketch_polygon">icons/sketch_polygon.svg</file>
+        <file alias="sketch_triangle">icons/sketch_triangle.svg</file>
+        <file alias="extrude">icons/extrude.svg</file>
+    </qresource>
+</RCC>

@@ -9,8 +9,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets SvgWidgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets SvgWidgets)
 
 # OpenCASCADE
 set(OpenCASCADE_DIR "/opt/homebrew/opt/opencascade/lib/cmake/opencascade")
@@ -45,6 +45,11 @@ set(PROJECT_SOURCES
     src/widgets/PatternDialog.cpp
     src/widgets/MirrorDialog.h
     src/widgets/MirrorDialog.cpp
+    src/widgets/SketchDialog.h
+    src/widgets/SketchDialog.cpp
+    src/widgets/ExtrudeDialog.h
+    src/widgets/ExtrudeDialog.cpp
+    resources/resources.qrc
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -65,6 +70,7 @@ set_source_files_properties(src/viewer/OccView.cpp PROPERTIES
 
 target_link_libraries(Qt_Project PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::SvgWidgets
     # OpenCASCADE libraries
     TKernel TKMath TKG3d TKBRep TKTopAlgo
     TKGeomBase TKGeomAlgo TKPrim TKBO
