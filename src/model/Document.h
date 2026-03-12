@@ -205,6 +205,38 @@ public:
      */
     static TopoDS_Shape rebuildShape(const QString& type, const QMap<QString, double>& params);
 
+    // --- 2D-эскизы ---
+
+    /**
+     * @brief Построить 2D-контур (Face) из типа и параметров.
+     * @param type Тип эскиза (Sketch_Rectangle, Sketch_Circle, и т.д.)
+     * @param params Параметры эскиза
+     * @param planeIndex 0=XY, 1=XZ, 2=YZ
+     * @param planeOffset Смещение плоскости (мм)
+     * @return TopoDS_Face или IsNull()
+     */
+    static TopoDS_Shape rebuildSketch(const QString& type, const QMap<QString, double>& params,
+                                       int planeIndex, double planeOffset);
+
+    /**
+     * @brief Добавить 2D-эскиз в документ.
+     * @return ID добавленного эскиза
+     */
+    int addSketch(const QString& type, const QMap<QString, double>& params,
+                  int planeIndex, double planeOffset, const TopoDS_Shape& face);
+
+    /**
+     * @brief Выдавить 2D-эскиз в 3D-тело.
+     * @param id ID эскиза (должен быть Sketch_* типа)
+     * @param height Высота выдавливания (мм)
+     * @param symmetric true — симметрично в обе стороны
+     * @return ID нового 3D-тела или -1 при ошибке
+     */
+    int extrudeShape(int id, double height, bool symmetric);
+
+    /** @brief Проверить, является ли фигура 2D-эскизом. */
+    static bool isSketchType(const QString& type);
+
     // --- Скругление / Фаска ---
 
     /**

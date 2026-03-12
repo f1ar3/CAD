@@ -18,11 +18,22 @@
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
 #include <TopoDS_Compound.hxx>
+#include <TopoDS_Wire.hxx>
+#include <TopoDS_Face.hxx>
 #include <TopoDS.hxx>
 #include <TopExp_Explorer.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Elips.hxx>
+#include <GC_MakeArcOfCircle.hxx>
 
 Document::Document(Handle(AIS_InteractiveContext) context, QObject* parent)
     : QObject(parent)
@@ -499,6 +510,204 @@ int Document::booleanOperation(int id1, int id2, BooleanType type)
 }
 
 // ============================================================
+//  2D Sketches
+// ============================================================
+
+bool Document::isSketchType(const QString& type)
+{
+    return type.startsWith("Sketch_");
+}
+
+TopoDS_Shape Document::rebuildSketch(const QString& type, const QMap<QString, double>& params,
+                                      int planeIndex, double planeOffset)
+{
+    // Build 2D wire in local XY, then transform to target plane
+
+    TopoDS_Wire wire;
+
+    if (type == "Sketch_Rectangle") {
+        double w = params.value("Width", 100.0);
+        double h = params.value("Height", 60.0);
+        gp_Pnt p1(0, 0, 0), p2(w, 0, 0), p3(w, h, 0), p4(0, h, 0);
+        BRepBuilderAPI_MakeWire mw;
+        mw.Add(BRepBuilderAPI_MakeEdge(p1, p2).Edge());
+        mw.Add(BRepBuilderAPI_MakeEdge(p2, p3).Edge());
+        mw.Add(BRepBuilderAPI_MakeEdge(p3, p4).Edge());
+        mw.Add(BRepBuilderAPI_MakeEdge(p4, p1).Edge());
+        wire = mw.Wire();
+    } else if (type == "Sketch_Circle") {
+        double r = params.value("Radius", 50.0);
+        gp_Circ circ(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), r);
+        wire = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(circ).Edge()).Wire();
+    } else if (type == "Sketch_Ellipse") {
+        double major = params.value("Major Radius", 60.0);
+        double minor = params.value("Minor Radius", 30.0);
+        gp_Elips elips(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), major, minor);
+        wire = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(elips).Edge()).Wire();
+    } else if (type == "Sketch_Polygon") {
+        double r = params.value("Radius", 40.0);
+        int sides = static_cast<int>(params.value("Sides", 6.0));
+        if (sides < 3) sides = 3;
+        BRepBuilderAPI_MakeWire mw;
+        for (int i = 0; i < sides; ++i) {
+            double a1 = 2.0 * M_PI * i / sides;
+            double a2 = 2.0 * M_PI * (i + 1) / sides;
+            gp_Pnt p1(r * cos(a1), r * sin(a1), 0);
+            gp_Pnt p2(r * cos(a2), r * sin(a2), 0);
+            mw.Add(BRepBuilderAPI_MakeEdge(p1, p2).Edge());
+        }
+        wire = mw.Wire();
+    } else if (type == "Sketch_Triangle") {
+        double s = params.value("Side", 80.0);
+        double h = s * std::sqrt(3.0) / 2.0;
+        gp_Pnt p1(0, 0, 0), p2(s, 0, 0), p3(s / 2.0, h, 0);
+        BRepBuilderAPI_MakeWire mw;
+        mw.Add(BRepBuilderAPI_MakeEdge(p1, p2).Edge());
+        mw.Add(BRepBuilderAPI_MakeEdge(p2, p3).Edge());
+        mw.Add(BRepBuilderAPI_MakeEdge(p3, p1).Edge());
+        wire = mw.Wire();
+    } else {
+        return {};
+    }
+
+    // Make face from wire
+    BRepBuilderAPI_MakeFace faceMaker(wire, Standard_True);
+    if (!faceMaker.IsDone()) return {};
+    TopoDS_Shape face = faceMaker.Face();
+
+    // Transform from local XY to target plane
+    gp_Trsf trsf;
+    switch (planeIndex) {
+    case 0: // XY — no rotation, offset along Z
+        if (!qFuzzyIsNull(planeOffset))
+            trsf.SetTranslation(gp_Vec(0, 0, planeOffset));
+        break;
+    case 1: // XZ — rotate -90° around X, offset along Y
+        trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), -M_PI / 2.0);
+        if (!qFuzzyIsNull(planeOffset)) {
+            gp_Trsf t2;
+            t2.SetTranslation(gp_Vec(0, planeOffset, 0));
+            trsf = t2 * trsf;
+        }
+        break;
+    case 2: // YZ — rotate 90° around Y, offset along X
+        trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0)), M_PI / 2.0);
+        if (!qFuzzyIsNull(planeOffset)) {
+            gp_Trsf t2;
+            t2.SetTranslation(gp_Vec(planeOffset, 0, 0));
+            trsf = t2 * trsf;
+        }
+        break;
+    }
+
+    if (trsf.Form() != gp_Identity) {
+        BRepBuilderAPI_Transform xform(face, trsf, Standard_True);
+        face = xform.Shape();
+    }
+
+    return face;
+}
+
+int Document::addSketch(const QString& type, const QMap<QString, double>& params,
+                         int planeIndex, double planeOffset, const TopoDS_Shape& face)
+{
+    saveSnapshot(QString::fromUtf8("Эскиз: %1").arg(type));
+
+    ShapeEntry entry;
+    entry.id = m_nextId++;
+    entry.name = generateName(type);
+    entry.type = type;
+    entry.params = params;
+    entry.params["_plane"] = planeIndex;
+    entry.params["_offset"] = planeOffset;
+    entry.topoShape = face;
+    entry.aisShape = new AIS_Shape(face);
+    entry.displayMode = 0; // wireframe for sketches
+
+    m_context->Display(entry.aisShape, Standard_False);
+    m_context->SetColor(entry.aisShape,
+        Quantity_Color(0.2, 0.8, 1.0, Quantity_TOC_RGB), // cyan for sketches
+        Standard_False);
+    m_context->SetDisplayMode(entry.aisShape, 0, Standard_False); // wireframe
+    m_shapes.append(entry);
+    m_context->UpdateCurrentViewer();
+
+    emit shapeAdded(entry.id);
+    emit modelChanged();
+    return entry.id;
+}
+
+int Document::extrudeShape(int id, double height, bool symmetric)
+{
+    ShapeEntry* entry = findShape(id);
+    if (!entry || !isSketchType(entry->type)) return -1;
+
+    int planeIndex = static_cast<int>(entry->params.value("_plane", 0));
+
+    // Determine extrusion direction based on the plane the sketch was created on
+    gp_Vec dir;
+    switch (planeIndex) {
+    case 0: dir = gp_Vec(0, 0, 1); break; // XY -> extrude along Z
+    case 1: dir = gp_Vec(0, 1, 0); break; // XZ -> extrude along Y
+    case 2: dir = gp_Vec(1, 0, 0); break; // YZ -> extrude along X
+    default: dir = gp_Vec(0, 0, 1); break;
+    }
+
+    TopoDS_Shape sketchShape = entry->topoShape;
+
+    // For symmetric: translate sketch by -height/2, then extrude by full height
+    if (symmetric) {
+        gp_Trsf shift;
+        shift.SetTranslation(dir.Reversed() * (height / 2.0));
+        BRepBuilderAPI_Transform xform(sketchShape, shift, Standard_True);
+        sketchShape = xform.Shape();
+    }
+
+    gp_Vec extrudeVec = dir * height;
+
+    BRepPrimAPI_MakePrism prism(sketchShape, extrudeVec);
+    if (!prism.IsDone()) return -1;
+
+    TopoDS_Shape result = prism.Shape();
+
+    saveSnapshot(QString::fromUtf8("Выдавливание: %1").arg(entry->name));
+
+    QString oldName = entry->name;
+    QColor oldColor = entry->color;
+
+    // Remove sketch
+    for (int i = 0; i < m_shapes.size(); ++i) {
+        if (m_shapes[i].id == id) {
+            m_context->Remove(m_shapes[i].aisShape, Standard_False);
+            m_shapes.removeAt(i);
+            break;
+        }
+    }
+
+    // Add extruded solid
+    ShapeEntry newEntry;
+    newEntry.id = m_nextId++;
+    newEntry.name = QString::fromUtf8("Выдавливание(%1)").arg(oldName);
+    newEntry.type = QString::fromUtf8("Выдавливание");
+    newEntry.params["height"] = height;
+    newEntry.params["symmetric"] = symmetric ? 1.0 : 0.0;
+    newEntry.color = QColor(180, 180, 220); // default solid color
+    newEntry.topoShape = result;
+    newEntry.aisShape = new AIS_Shape(result);
+
+    m_context->Display(newEntry.aisShape, Standard_False);
+    m_context->SetColor(newEntry.aisShape,
+        Quantity_Color(newEntry.color.redF(), newEntry.color.greenF(), newEntry.color.blueF(),
+                       Quantity_TOC_RGB),
+        Standard_False);
+    m_shapes.append(newEntry);
+    m_context->UpdateCurrentViewer();
+
+    emit modelChanged();
+    return newEntry.id;
+}
+
+// ============================================================
 //  Fillet / Chamfer
 // ============================================================
 
@@ -783,22 +992,33 @@ int Document::duplicateShape(int id)
 
     saveSnapshot(QString::fromUtf8("Дублирование: %1").arg(entry->name));
 
+    // Copy source data before mutating m_shapes (append can invalidate pointers)
+    const TopoDS_Shape srcShape = entry->topoShape;
+    const QString srcType = entry->type;
+    const QMap<QString, double> srcParams = entry->params;
+    const QColor srcColor = entry->color;
+    const double srcPosX = entry->posX;
+    const double srcPosY = entry->posY;
+    const double srcPosZ = entry->posZ;
+    const double srcTransparency = entry->transparency;
+    const int srcDisplayMode = entry->displayMode;
+
     // Clone shape with +20mm X offset
     gp_Trsf trsf;
     trsf.SetTranslation(gp_Vec(20.0, 0.0, 0.0));
-    BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+    BRepBuilderAPI_Transform transform(srcShape, trsf, Standard_True);
 
     ShapeEntry newEntry;
     newEntry.id = m_nextId++;
-    newEntry.name = generateName(entry->type);
-    newEntry.type = entry->type;
-    newEntry.params = entry->params;
-    newEntry.color = entry->color;
-    newEntry.posX = entry->posX + 20.0;
-    newEntry.posY = entry->posY;
-    newEntry.posZ = entry->posZ;
-    newEntry.transparency = entry->transparency;
-    newEntry.displayMode = entry->displayMode;
+    newEntry.name = generateName(srcType);
+    newEntry.type = srcType;
+    newEntry.params = srcParams;
+    newEntry.color = srcColor;
+    newEntry.posX = srcPosX + 20.0;
+    newEntry.posY = srcPosY;
+    newEntry.posZ = srcPosZ;
+    newEntry.transparency = srcTransparency;
+    newEntry.displayMode = srcDisplayMode;
     newEntry.topoShape = transform.Shape();
     newEntry.aisShape = new AIS_Shape(newEntry.topoShape);
 
@@ -828,6 +1048,18 @@ QList<int> Document::createPattern(int sourceId, bool isCircular, int axisIndex,
         ? QString::fromUtf8("Круговой массив: %1").arg(entry->name)
         : QString::fromUtf8("Линейный массив: %1").arg(entry->name));
 
+    // Copy source data before mutating m_shapes (append can invalidate pointers)
+    const TopoDS_Shape srcShape = entry->topoShape;
+    const QString srcName = entry->name;
+    const QString srcType = entry->type;
+    const QMap<QString, double> srcParams = entry->params;
+    const QColor srcColor = entry->color;
+    const double srcPosX = entry->posX;
+    const double srcPosY = entry->posY;
+    const double srcPosZ = entry->posZ;
+    const double srcTransparency = entry->transparency;
+    const int srcDisplayMode = entry->displayMode;
+
     gp_Dir axisDir;
     switch (axisIndex) {
     case 0: axisDir = gp_Dir(1, 0, 0); break;
@@ -849,22 +1081,22 @@ QList<int> Document::createPattern(int sourceId, bool isCircular, int axisIndex,
             trsf.SetTranslation(vec);
         }
 
-        BRepBuilderAPI_Transform transform(entry->topoShape, trsf, Standard_True);
+        BRepBuilderAPI_Transform transform(srcShape, trsf, Standard_True);
 
         ShapeEntry newEntry;
         newEntry.id = m_nextId++;
-        newEntry.name = QString("%1_p%2").arg(entry->name).arg(i + 1);
-        newEntry.type = entry->type;
-        newEntry.params = entry->params;
-        newEntry.color = entry->color;
-        newEntry.transparency = entry->transparency;
-        newEntry.displayMode = entry->displayMode;
+        newEntry.name = QString("%1_p%2").arg(srcName).arg(i + 1);
+        newEntry.type = srcType;
+        newEntry.params = srcParams;
+        newEntry.color = srcColor;
+        newEntry.transparency = srcTransparency;
+        newEntry.displayMode = srcDisplayMode;
 
         if (!isCircular) {
             double d = step * i;
-            newEntry.posX = entry->posX + (axisIndex == 0 ? d : 0.0);
-            newEntry.posY = entry->posY + (axisIndex == 1 ? d : 0.0);
-            newEntry.posZ = entry->posZ + (axisIndex == 2 ? d : 0.0);
+            newEntry.posX = srcPosX + (axisIndex == 0 ? d : 0.0);
+            newEntry.posY = srcPosY + (axisIndex == 1 ? d : 0.0);
+            newEntry.posZ = srcPosZ + (axisIndex == 2 ? d : 0.0);
         }
 
         newEntry.topoShape = transform.Shape();

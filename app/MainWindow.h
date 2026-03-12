@@ -58,6 +58,14 @@ private slots:
     void onDuplicate();
     void onToggleVisibility();
 
+    // Sketches
+    void onSketchRectangle();
+    void onSketchCircle();
+    void onSketchEllipse();
+    void onSketchPolygon();
+    void onSketchTriangle();
+    void onExtrude();
+
     // Delete
     void onDeleteSelected();
 
@@ -75,6 +83,7 @@ private:
 
     int requireSelectedShape();
     void createPrimitive(const QString& type);
+    void createSketch(const QString& type);
     void doBooleanOp(int boolType);
 
     OccView*         m_occView = nullptr;
@@ -128,6 +137,14 @@ private:
     QAction* m_actMirror = nullptr;
     QAction* m_actDuplicate = nullptr;
     QAction* m_actToggleVisibility = nullptr;
+
+    // Sketch actions
+    QAction* m_actSketchRect = nullptr;
+    QAction* m_actSketchCircle = nullptr;
+    QAction* m_actSketchEllipse = nullptr;
+    QAction* m_actSketchPolygon = nullptr;
+    QAction* m_actSketchTriangle = nullptr;
+    QAction* m_actExtrude = nullptr;
 
     // Drag state
     int m_draggedShapeId = -1;
